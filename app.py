@@ -11,7 +11,6 @@ st.title("📄 Aplikasi Otomatisasi Laporan Dana")
 
 uploaded_file = st.file_uploader("Unggah file PDF laporan", type=["pdf"])
 
-# Kata kunci default
 default_keywords = ["baut", "trass", "dinabol", "alat listrik", "klip wpc", "downled"]
 
 user_keywords = st.text_area(
@@ -22,38 +21,27 @@ user_keywords = st.text_area(
 
 keywords = [k.strip().lower() for k in user_keywords.split(",") if k.strip()]
 
-# Fungsi bantu parsing rupiah
 def parse_rupiah(text):
-    return int(text.replace("Rp", "").replace(".", "").replace(",", "").strip())
+    try:
+        return int(text.replace("Rp", "").replace(".", "").replace(",", "").strip())
+    except:
+        return 0
 
-# Parsing data PDF
 def extract_transactions(pdf_file):
     results = []
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
-            text = page.extract_text()
-            if not text:
-                continue
-            lines = text.split("\n")
-            for i in range(len(lines) - 1):
-                line = lines[i].strip()
-                if re.match(r"\d{1,2}\s\w+\s2025", line):  # Cek baris tanggal
-                    tanggal = line
-                    deskripsi = lines[i + 1].strip()
-                    jenis = "Keluar" if "Keluar" in deskripsi else "Masuk" if "Masuk" in deskripsi else ""
-                    masuk = ""
-                    keluar = ""
-                    if jenis == "Keluar":
-                        match = re.search(r"Rp[\d\.]+", deskripsi)
-                        keluar = match.group(0) if match else ""
-                    elif jenis == "Masuk":
-                        match = re.search(r"Rp[\d\.]+", deskripsi)
-                        masuk = match.group(0) if match else ""
-                    if jenis:
+            table = page.extract_table()
+            if table:
+                for row in table:
+                    clean = [r.strip() if r else "" for r in row]
+                    if len(clean) >= 5:
+                        tanggal, deskripsi, jenis, masuk, keluar = clean[:5]
+                        if jenis == "Keluar" and any(kata in deskripsi.lower() for kata in ["tes", "titipan", "salah input"]):
+                            continue
                         results.append((tanggal, deskripsi, jenis, masuk, keluar))
     return results
 
-# Buat tabel PDF hasil
 def create_pdf(data_by_category):
     pdf = FPDF()
     pdf.add_page()
@@ -79,10 +67,7 @@ def create_pdf(data_by_category):
             pdf.cell(30, 8, row[4] if row[4] else "-", 1)
             pdf.ln()
             if row[4]:
-                try:
-                    total += parse_rupiah(row[4])
-                except:
-                    pass
+                total += parse_rupiah(row[4])
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(160, 8, "TOTAL", 1)
         pdf.cell(30, 8, f"Rp{total:,.0f}".replace(",", "."), 1)
@@ -94,28 +79,35 @@ def create_pdf(data_by_category):
     return out_pdf
 
 if uploaded_file:
-    data = extract_transactions(uploaded_file)
-    data = [d for d in data if d[2] == "Keluar"]
-    data = [d for d in data if not any(k in d[1].lower() for k in ["tes", "titipan", "salah input"])]
+    try:
+        data = extract_transactions(uploaded_file)
+        keluar = [d for d in data if d[2].lower() == "keluar"]
 
-    kategori_v = [d for d in data if "v" in d[1].lower()]
-    kategori_transfer = [d for d in data if any(k in d[1].lower() for k in ["transfer", "setor", "setoran bagus"])]
-    kategori_baut = [d for d in data if any(k in d[1].lower() for k in keywords)]
-    kategori_bon = [d for d in data if "bon" in d[1].lower()]
-    kategori_lain = [d for d in data if d not in kategori_v and d not in kategori_transfer and d not in kategori_baut and d not in kategori_bon]
+        kategori_v = [d for d in keluar if "v" in d[1].lower()]
+        kategori_transfer = [d for d in keluar if any(k in d[1].lower() for k in ["transfer", "setor", "setoran bagus"])]
+        kategori_baut = [d for d in keluar if any(k in d[1].lower() for k in keywords)]
+        kategori_bon = [d for d in keluar if "bon" in d[1].lower()]
+        kategori_lain = [d for d in keluar if d not in kategori_v and d not in kategori_transfer and d not in kategori_baut and d not in kategori_bon]
 
-    data_by_category = {
-        "Kategori: V": kategori_v,
-        "Kategori: Transfer & Setor Mandiri": kategori_transfer,
-        "Kategori: Baut, Trass, Dinabol, dll": kategori_baut,
-        "Kategori: Bon": kategori_bon,
-        "Kategori: Pengeluaran Lainnya": kategori_lain
-    }
+        data_by_category = {
+            "Kategori: V": kategori_v,
+            "Kategori: Transfer & Setor Mandiri": kategori_transfer,
+            "Kategori: Baut, Trass, Dinabol, dll": kategori_baut,
+            "Kategori: Bon": kategori_bon,
+            "Kategori: Pengeluaran Lainnya": kategori_lain
+        }
 
-    st.success("✅ Transaksi berhasil diproses!")
-    for name, rows in data_by_category.items():
-        st.subheader(name)
-        st.table(rows)
+        st.success("✅ Transaksi berhasil diproses!")
 
-    pdf_file = create_pdf(data_by_category)
-    st.download_button("📥 Unduh Hasil sebagai PDF", data=pdf_file, file_name="Laporan_Hasil.pdf")
+        for name, rows in data_by_category.items():
+            st.subheader(name)
+            if rows:
+                st.table(rows)
+            else:
+                st.markdown("_Tidak ada data_")
+
+        pdf_file = create_pdf(data_by_category)
+        st.download_button("📥 Unduh Hasil sebagai PDF", data=pdf_file, file_name="Laporan_Hasil.pdf")
+
+    except Exception as e:
+        st.error(f"❌ Gagal memproses PDF: {e}")
