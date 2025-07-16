@@ -6,7 +6,6 @@ from fpdf import FPDF
 from io import BytesIO
 
 st.set_page_config(page_title="Laporan Dana Otomatis", layout="wide")
-
 st.title("📄 Aplikasi Otomatisasi Laporan Dana")
 
 uploaded_file = st.file_uploader("Unggah file PDF laporan", type=["pdf"])
@@ -27,19 +26,34 @@ def parse_rupiah(text):
     except:
         return 0
 
-def extract_transactions(pdf_file):
+def extract_transactions_from_text(pdf_file):
     results = []
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
-            table = page.extract_table()
-            if table:
-                for row in table:
-                    clean = [r.strip() if r else "" for r in row]
-                    if len(clean) >= 5:
-                        tanggal, deskripsi, jenis, masuk, keluar = clean[:5]
-                        if jenis == "Keluar" and any(kata in deskripsi.lower() for kata in ["tes", "titipan", "salah input"]):
+            text = page.extract_text()
+            if not text:
+                continue
+            lines = text.split("\n")
+            for i in range(len(lines)):
+                line = lines[i].strip()
+                # cari tanggal seperti "13 July 2025"
+                if re.match(r"\d{1,2} \w+ 2025", line):
+                    tanggal = line
+                    if i+1 < len(lines):
+                        deskripsi = lines[i+1].strip()
+                        if any(k in deskripsi.lower() for k in ["tes", "titipan", "salah input"]):
                             continue
-                        results.append((tanggal, deskripsi, jenis, masuk, keluar))
+                        jenis = "Keluar" if "keluar" in deskripsi.lower() else "Masuk" if "masuk" in deskripsi.lower() else ""
+                        masuk = ""
+                        keluar = ""
+                        match = re.search(r"Rp[\d\.]+", deskripsi)
+                        if match:
+                            if jenis == "Masuk":
+                                masuk = match.group(0)
+                            elif jenis == "Keluar":
+                                keluar = match.group(0)
+                        if jenis:
+                            results.append((tanggal, deskripsi, jenis, masuk, keluar))
     return results
 
 def create_pdf(data_by_category):
@@ -74,13 +88,13 @@ def create_pdf(data_by_category):
         pdf.ln(10)
 
     out_pdf = BytesIO()
-    out_pdf.write(pdf.output(dest='S').encode('latin1'))
+    out_pdf.write(pdf.output(dest="S").encode("latin1"))
     out_pdf.seek(0)
     return out_pdf
 
 if uploaded_file:
     try:
-        data = extract_transactions(uploaded_file)
+        data = extract_transactions_from_text(uploaded_file)
         keluar = [d for d in data if d[2].lower() == "keluar"]
 
         kategori_v = [d for d in keluar if "v" in d[1].lower()]
