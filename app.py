@@ -39,18 +39,23 @@ def extract_transactions(pdf_file):
                 if re.match(r"\d{1,2} \w+", line1) and "2025" in line3:
                     tanggal = f"{line1} 2025"
                     deskripsi = line2
-                    if any(k in deskripsi.lower() for k in ["tes", "titipan", "salah input"]):
-                        i += 1
+
+                    # Hapus baris jika mengandung kata terlarang
+                    if any(k in deskripsi.lower() for k in ["titipan", "tes", "salah input"]):
+                        i += 3
                         continue
+
                     jenis = "Keluar" if "keluar" in deskripsi.lower() else "Masuk" if "masuk" in deskripsi.lower() else ""
                     masuk = keluar = ""
-                    # Ambil nominal "Keluar" pertama (prioritaskan jumlah keluar)
+
                     match = re.findall(r"Rp[\d\.]+", deskripsi)
                     if match:
+                        nominal = match[0]
                         if jenis == "Keluar":
-                            keluar = match[0]
+                            keluar = nominal
                         elif jenis == "Masuk":
-                            masuk = match[0]
+                            masuk = nominal
+
                     if jenis:
                         results.append((tanggal, deskripsi, jenis, masuk, keluar))
                     i += 3
