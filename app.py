@@ -26,35 +26,33 @@ def parse_rupiah(text):
     except:
         return 0
 
-def extract_transactions_custom(pdf_file):
+def extract_transactions(pdf_file):
     results = []
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
             lines = page.extract_text().split("\n")
             i = 0
-            while i < len(lines) - 1:
+            while i < len(lines) - 2:
                 line1 = lines[i].strip()
                 line2 = lines[i+1].strip()
-                # Jika line1 = "13 July" dan line2 mengandung "2025"
-                if re.match(r"\d{1,2} \w+", line1) and "2025" in line2:
+                line3 = lines[i+2].strip()
+                if re.match(r"\d{1,2} \w+", line1) and "2025" in line3:
                     tanggal = f"{line1} 2025"
-                    if i+2 < len(lines):
-                        data_line = lines[i+2].strip()
-                        jenis = "Keluar" if "keluar" in data_line.lower() else "Masuk" if "masuk" in data_line.lower() else ""
-                        if not jenis or any(k in data_line.lower() for k in ["tes", "titipan", "salah input"]):
-                            i += 1
-                            continue
-                        masuk = keluar = ""
-                        match = re.search(r"Rp[\d\.]+", data_line)
-                        if match:
-                            if jenis == "Keluar":
-                                keluar = match.group(0)
-                            elif jenis == "Masuk":
-                                masuk = match.group(0)
-                        results.append((tanggal, data_line, jenis, masuk, keluar))
-                        i += 3
-                    else:
-                        i += 2
+                    deskripsi = line2
+                    if any(k in deskripsi.lower() for k in ["tes", "titipan", "salah input"]):
+                        i += 1
+                        continue
+                    jenis = "Keluar" if "keluar" in deskripsi.lower() else "Masuk" if "masuk" in deskripsi.lower() else ""
+                    masuk = keluar = ""
+                    match = re.search(r"Rp[\d\.]+", deskripsi)
+                    if match:
+                        if jenis == "Keluar":
+                            keluar = match.group(0)
+                        elif jenis == "Masuk":
+                            masuk = match.group(0)
+                    if jenis:
+                        results.append((tanggal, deskripsi, jenis, masuk, keluar))
+                    i += 3
                 else:
                     i += 1
     return results
@@ -97,7 +95,7 @@ def create_pdf(data_by_category):
 
 if uploaded_file:
     try:
-        data = extract_transactions_custom(uploaded_file)
+        data = extract_transactions(uploaded_file)
         keluar = [d for d in data if d[2].lower() == "keluar"]
 
         kategori_v = [d for d in keluar if "v" in d[1].lower()]
