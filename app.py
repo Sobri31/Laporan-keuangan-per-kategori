@@ -33,29 +33,30 @@ def extract_transactions(pdf_file):
             lines = page.extract_text().split("\n")
             i = 0
             while i < len(lines) - 2:
-                line1 = lines[i].strip()
-                line2 = lines[i+1].strip()
-                line3 = lines[i+2].strip()
-                if re.match(r"\d{1,2} \w+", line1) and "2025" in line3:
-                    tanggal = f"{line1} 2025"
-                    deskripsi = line2
+                tanggal_line = lines[i].strip()
+                deskripsi_line = lines[i + 1].strip()
+                tahun_line = lines[i + 2].strip()
+                if re.match(r"\d{1,2} \w+", tanggal_line) and "2025" in tahun_line:
+                    tanggal = f"{tanggal_line} 2025"
+                    deskripsi = deskripsi_line
 
-                    # Hapus baris jika mengandung kata terlarang
+                    # Abaikan transaksi yang mengandung kata ini
                     if any(k in deskripsi.lower() for k in ["titipan", "tes", "salah input"]):
                         i += 3
                         continue
 
+                    # Ambil hanya nominal pertama
+                    match = re.findall(r"Rp[\d\.]+", deskripsi)
+                    nominal = match[0] if match else None
+                    if nominal:
+                        deskripsi = re.sub(r"(Rp[\d\.]+\s*)+", nominal, deskripsi)
+
                     jenis = "Keluar" if "keluar" in deskripsi.lower() else "Masuk" if "masuk" in deskripsi.lower() else ""
                     masuk = keluar = ""
-
-                    match = re.findall(r"Rp[\d\.]+", deskripsi)
-                    if match:
-                        nominal = match[0]
-                        deskripsi = re.sub(r"(Rp[\d\.]+\s*)+", nominal, deskripsi)
-                        if jenis == "Keluar":
-                            keluar = nominal
-                        elif jenis == "Masuk":
-                            masuk = nominal
+                    if jenis == "Keluar":
+                        keluar = nominal
+                    elif jenis == "Masuk":
+                        masuk = nominal
 
                     if jenis:
                         results.append((tanggal, deskripsi, jenis, masuk, keluar))
@@ -105,7 +106,7 @@ if uploaded_file:
         data = extract_transactions(uploaded_file)
         keluar = [d for d in data if d[2].lower() == "keluar"]
 
-        kategori_v = [d for d in keluar if "v" in d[1].lower()]
+        kategori_v = [d for d in keluar if " v " in f" {d[1].lower()} "]
         kategori_transfer = [d for d in keluar if any(k in d[1].lower() for k in ["transfer", "setor", "setoran bagus"])]
         kategori_baut = [d for d in keluar if any(k in d[1].lower() for k in keywords)]
         kategori_bon = [d for d in keluar if "bon" in d[1].lower()]
