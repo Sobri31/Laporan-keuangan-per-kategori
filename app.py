@@ -88,9 +88,7 @@ def create_pdf(data_by_category):
         pdf.ln(10)
 
     out_pdf = BytesIO()
-    out_pdf.write(pdf.output(dest="S").encode("latin1"))
-    out_pdf.seek(0)
-    return out_pdf
+    return BytesIO(pdf.output(dest='S').encode('latin1'))
 
 if uploaded_file:
     try:
