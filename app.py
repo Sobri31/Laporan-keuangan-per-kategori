@@ -25,12 +25,6 @@ def parse_rupiah(text):
         return int(text.replace("Rp", "").replace(".", "").replace(",", "").strip())
     except:
         return 0
-       
-with pdfplumber.open(uploaded_file) as pdf:
-        st.subheader("📄 Isi Mentah PDF:")
-        for i, page in enumerate(pdf.pages):
-            st.text(f"--- Halaman {i+1} ---")
-            st.text(page.extract_text())
 
 def extract_transactions(pdf_file):
     results = []
@@ -50,12 +44,13 @@ def extract_transactions(pdf_file):
                         continue
                     jenis = "Keluar" if "keluar" in deskripsi.lower() else "Masuk" if "masuk" in deskripsi.lower() else ""
                     masuk = keluar = ""
-                    match = re.search(r"Rp[\d\.]+", deskripsi)
+                    # Ambil nominal "Keluar" pertama (prioritaskan jumlah keluar)
+                    match = re.findall(r"Rp[\d\.]+", deskripsi)
                     if match:
                         if jenis == "Keluar":
-                            keluar = match.group(0)
+                            keluar = match[0]
                         elif jenis == "Masuk":
-                            masuk = match.group(0)
+                            masuk = match[0]
                     if jenis:
                         results.append((tanggal, deskripsi, jenis, masuk, keluar))
                     i += 3
