@@ -25,6 +25,12 @@ def parse_rupiah(text):
         return int(text.replace("Rp", "").replace(".", "").replace(",", "").strip())
     except:
         return 0
+       
+with pdfplumber.open(uploaded_file) as pdf:
+        st.subheader("📄 Isi Mentah PDF:")
+        for i, page in enumerate(pdf.pages):
+            st.text(f"--- Halaman {i+1} ---")
+            st.text(page.extract_text())
 
 def extract_transactions(pdf_file):
     results = []
