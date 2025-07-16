@@ -51,6 +51,7 @@ def extract_transactions(pdf_file):
                     match = re.findall(r"Rp[\d\.]+", deskripsi)
                     if match:
                         nominal = match[0]
+                        deskripsi = re.sub(r"(Rp[\d\.]+\s*)+", nominal, deskripsi)
                         if jenis == "Keluar":
                             keluar = nominal
                         elif jenis == "Masuk":
